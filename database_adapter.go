@@ -69,6 +69,19 @@ func (database DataBaseAdapter) GetVersions(offset int, limit int) []BlockModel 
 	return blocks
 }
 
+func (database DataBaseAdapter) GetVersionsRefAddress(address string, offset int, limit int)[]BlockModel {
+	db := database.GetDB()
+	defer db.Close()
+	if limit > 50 {
+		limit = 50
+	}
+
+	var blocks []BlockModel
+	db.Where("source = ?", address).Or("destination = ?", address).Order("version desc").Offset(offset).Limit(limit).Find(&blocks)
+
+	return blocks
+}
+
 
 func (database DataBaseAdapter) SaveBlock(model BlockModel) {
 	db := database.GetDB()
