@@ -46,6 +46,30 @@ func (database DataBaseAdapter) GetLatestVersion() uint64 {
 	return result.Version
 }
 
+func (database DataBaseAdapter) GetVersion(id uint64) BlockModel {
+	db := database.GetDB()
+	defer db.Close()
+
+	var result BlockModel
+	db.Where("version = ?", id).First(&result)
+
+	return result
+}
+
+func (database DataBaseAdapter) GetVersions(offset int, limit int) []BlockModel {
+	db := database.GetDB()
+	defer db.Close()
+	if limit > 50 {
+		limit = 50
+	}
+
+	var blocks []BlockModel
+	db.Order("version desc").Offset(offset).Limit(limit).Find(&blocks)
+
+	return blocks
+}
+
+
 func (database DataBaseAdapter) SaveBlock(model BlockModel) {
 	db := database.GetDB()
 	defer db.Close()
