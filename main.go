@@ -14,6 +14,8 @@ func main() {
 	r.GET("/version", func(c *gin.Context) {
 		offsetStr := c.DefaultQuery("offset", "0")
 		limitStr := c.DefaultQuery("limit", "20")
+		address := c.Query("address")
+
 
 		offset, err1 := strconv.Atoi(offsetStr)
 		limit, err2 := strconv.Atoi(limitStr)
@@ -23,7 +25,12 @@ func main() {
 			return
 		}
 
-		c.JSON(200, db.GetVersions(offset, limit))
+		if address == "" {
+			c.JSON(200, db.GetVersions(offset, limit))
+		} else {
+			c.JSON(200, db.GetVersionsRefAddress(address, offset, limit))
+		}
+
 	})
 
 	r.GET("/version/:id", func(c *gin.Context) {
