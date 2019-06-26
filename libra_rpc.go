@@ -148,8 +148,11 @@ func (libra LibraRPC) GetAccountState(address string) (*AccountModel, error) {
 	for _, v := range r.ResponseItems {
 		switch val := v.ResponseItems.(type) {
 		case *pb.ResponseItem_GetAccountStateResponse:
-
 			blob := val.GetAccountStateResponse.AccountStateWithProof.Blob
+			if blob.GetBlob() == nil {
+				return nil, nil
+			}
+
 			str := bytesToHex(blob.Blob)
 			magicStr := "100000001217da6c6b3e19f1825cfb2676daecce3bf3de03cf26647c78df00b371b25cc974400000020000000"
 			idx := strings.Index(str, magicStr)
