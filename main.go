@@ -2,11 +2,13 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+	"os"
 	"strconv"
 )
 
 func main() {
-	db := NewDataBaseAdapter("root:test@(127.0.0.1:32773)/libra")
+	dbURL := os.Getenv("LIBRA_MYSQL_URL")
+	db := NewDataBaseAdapter(dbURL)
 	db.migration()
 
 	r := gin.Default()
