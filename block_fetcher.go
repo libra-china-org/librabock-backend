@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
+	"os"
 	"time"
 )
 
@@ -10,8 +13,16 @@ func haveARest() {
 }
 
 func main()  {
+	botKey := os.Getenv("LIBRA_BOT_KEY")
+	botSecret := os.Getenv("LIBRA_BOT_SECRET")
+	chatId := os.Getenv("LIBRA_BOT_CHAT_ID")
+	dbURL := os.Getenv("LIBRA_MYSQL_URL")
+
+	telegramURL := fmt.Sprintf("https://api.telegram.org/%s:%s/sendMessage?chat_id=%s&parse_mode=markdown&text=", botKey, botSecret, chatId)
+	fmt.Println(telegramURL)
+
 	rpc := NewLibraRPC(nil)
-	db := NewDataBaseAdapter("root:test@(127.0.0.1:32773)/libra")
+	db := NewDataBaseAdapter(dbURL)
 
 	db.migration()
 
@@ -20,6 +31,8 @@ func main()  {
 	for  {
 		if errCnt > 10 {
 			fmt.Printf("Max Retry Times")
+
+			_, _ = http.Get(telegramURL + url.QueryEscape("libra block fetcher failed 10 times"))
 			break
 		}
 
