@@ -1,15 +1,18 @@
 package main
 
 import (
-	"github.com/gin-gonic/gin"
 	"os"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"io.librablock.go/controllers"
+	"io.librablock.go/utils"
 )
 
 func main() {
 	dbURL := os.Getenv("LIBRA_MYSQL_URL")
-	db := NewDataBaseAdapter(dbURL)
-	db.migration()
+	db := utils.NewDataBaseAdapter(dbURL)
+	db.Migration()
 
 	r := gin.Default()
 
@@ -17,7 +20,6 @@ func main() {
 		offsetStr := c.DefaultQuery("offset", "0")
 		limitStr := c.DefaultQuery("limit", "20")
 		address := c.Query("address")
-
 
 		offset, err1 := strconv.Atoi(offsetStr)
 		limit, err2 := strconv.Atoi(limitStr)
@@ -54,14 +56,14 @@ func main() {
 
 	r.GET("/account/:address", func(c *gin.Context) {
 		address := c.Param("address")
-		_, err := hexToBytes(address)
+		_, err := controllers.HexToBytes(address)
 
 		if len(address) != 64 || err != nil {
 			c.JSON(400, gin.H{"message": "bad request"})
 			return
 		}
 
-		rpc := NewLibraRPC(nil)
+		rpc := controllers.NewLibraRPC(nil)
 		r, err := rpc.GetAccountState(address)
 
 		if err != nil {

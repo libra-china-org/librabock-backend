@@ -1,4 +1,4 @@
-package main
+package models
 
 import "time"
 
@@ -15,14 +15,14 @@ type BlockModel struct {
 	MaxGas         uint64    `json:"max_gas" `
 	SequenceNumber uint64    `json:"sequence_number" `
 	PublicKey      string    `json:"public_key"`
-	MD5			   string    `json:"-" `
+	MD5            string    `json:"-" `
 }
 
 type AccountModel struct {
-	Address string `json:"address"`
-	Balance uint64 `json:"Balance"`
-	SequenceNumber uint64 `json:"sequence_number"`
-	SentEventCount uint64 `json:"sent_event_count"`
+	Address            string `json:"address"`
+	Balance            uint64 `json:"Balance"`
+	SequenceNumber     uint64 `json:"sequence_number"`
+	SentEventCount     uint64 `json:"sent_event_count"`
 	ReceivedEventCount uint64 `json:"received_event_count"`
-	AuthenticationKey string `json:"authentication_key"`
+	AuthenticationKey  string `json:"authentication_key"`
 }

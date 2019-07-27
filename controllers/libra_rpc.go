@@ -1,4 +1,4 @@
-package main
+package controllers
 
 import (
 	"context"
@@ -6,13 +6,15 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"google.golang.org/grpc"
 	"log"
 	"strings"
 	"time"
 
-	pb "./proto"
+	"github.com/golang/protobuf/proto"
+	"google.golang.org/grpc"
+
+	"io.librablock.go/models"
+	pb "io.librablock.go/proto"
 )
 
 const (
@@ -28,7 +30,7 @@ type LibraRPC struct {
 	Address string
 }
 
-func NewLibraRPC(address *string) LibraRPC  {
+func NewLibraRPC(address *string) LibraRPC {
 	l := LibraRPC{}
 	if address != nil {
 		l.Address = *address
@@ -39,19 +41,19 @@ func NewLibraRPC(address *string) LibraRPC  {
 	return l
 }
 
-func bytesToHex(bytes []byte) string {
+func BytesToHex(bytes []byte) string {
 	dst := make([]byte, hex.EncodedLen(len(bytes)))
 	n := hex.Encode(dst, bytes)
 	return fmt.Sprintf("%s", dst[:n])
 }
 
-func hexToBytes(str string) ([]byte, error) {
+func HexToBytes(str string) ([]byte, error) {
 	data, err := hex.DecodeString(str)
 	return data, err
 }
 
-func hexToUint64(str string) (uint64, error){
-	bytes, err := hexToBytes(str)
+func HexToUint64(str string) (uint64, error) {
+	bytes, err := HexToBytes(str)
 	if err != nil {
 		return 0, err
 	}
@@ -59,8 +61,8 @@ func hexToUint64(str string) (uint64, error){
 	return uint64(binary.LittleEndian.Uint64(bytes)), nil
 }
 
-func (libra LibraRPC) GetLatestVersion() (uint64, error){
-	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{ libra.getTransactionsRequestMaker(0,1, false)})
+func (libra LibraRPC) GetLatestVersion() (uint64, error) {
+	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{libra.getTransactionsRequestMaker(0, 1, false)})
 
 	if err != nil {
 		return 0, err
@@ -69,77 +71,77 @@ func (libra LibraRPC) GetLatestVersion() (uint64, error){
 	return r.LedgerInfoWithSigs.LedgerInfo.Version, nil
 }
 
-func (libra LibraRPC) GetTransactions(version uint64, limit uint64, fetchEvents bool) (*[]BlockModel, error) {
-	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{ libra.getTransactionsRequestMaker(version,limit, false)})
+func (libra LibraRPC) GetTransactions(version uint64, limit uint64, fetchEvents bool) (*[]models.BlockModel, error) {
+	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{libra.getTransactionsRequestMaker(version, limit, false)})
 
 	if err != nil {
 		return nil, err
 	}
 
-	var res []BlockModel
+	var res []models.BlockModel
 
 	for _, x := range r.ResponseItems {
 		switch val := x.ResponseItems.(type) {
 		case *pb.ResponseItem_GetTransactionsResponse:
 			transactions := val.GetTransactionsResponse.TxnListWithProof.Transactions
-					for idx, trans := range transactions {
-						raw := pb.RawTransaction{}
-						err := proto.Unmarshal(trans.RawTxnBytes, &raw)
-						if err != nil {
-							return nil, err
+			for idx, trans := range transactions {
+				raw := pb.RawTransaction{}
+				err := proto.Unmarshal(trans.RawTxnBytes, &raw)
+				if err != nil {
+					return nil, err
+				}
+
+				result := models.BlockModel{}
+
+				result.Version = version + uint64(idx)
+				result.ExpirationAt = time.Unix(int64(raw.ExpirationTime), 0)
+				result.Source = BytesToHex(raw.SenderAccount)
+				result.GasPrice = raw.GasUnitPrice
+				result.MaxGas = raw.MaxGasAmount
+				result.SequenceNumber = raw.SequenceNumber
+				result.PublicKey = BytesToHex(trans.SenderPublicKey)
+
+				switch payload := raw.Payload.(type) {
+				case *pb.RawTransaction_Program:
+					for _, arg := range payload.Program.Arguments {
+						switch arg.Type {
+						case pb.TransactionArgument_U64:
+							result.Amount = uint64(binary.LittleEndian.Uint64(arg.Data))
+						case pb.TransactionArgument_ADDRESS:
+							result.Destination = BytesToHex(arg.Data)
 						}
-
-						result := BlockModel{}
-
-						result.Version = version + uint64(idx)
-						result.ExpirationAt = time.Unix(int64(raw.ExpirationTime), 0)
-						result.Source = bytesToHex(raw.SenderAccount)
-						result.GasPrice = raw.GasUnitPrice
-						result.MaxGas = raw.MaxGasAmount
-						result.SequenceNumber = raw.SequenceNumber
-						result.PublicKey = bytesToHex(trans.SenderPublicKey)
-
-						switch payload := raw.Payload.(type) {
-						case *pb.RawTransaction_Program:
-							for _, arg := range payload.Program.Arguments {
-								switch arg.Type {
-								case pb.TransactionArgument_U64:
-									result.Amount = uint64(binary.LittleEndian.Uint64(arg.Data))
-								case pb.TransactionArgument_ADDRESS:
-									result.Destination = bytesToHex(arg.Data)
-								}
-							}
-							has := md5.Sum(payload.Program.Code)
-							result.MD5 = fmt.Sprintf("%x", has)
-
-							if result.MD5 == P2pProgramMd5 {
-								result.Type = P2pTransType
-							} else if result.MD5 == MintProgramMd5 {
-								result.Type = MintTransType
-							} else {
-								result.Type = UnknownTransType
-							}
-
-						}
-
-						res = append(res, result)
 					}
+					has := md5.Sum(payload.Program.Code)
+					result.MD5 = fmt.Sprintf("%x", has)
+
+					if result.MD5 == P2pProgramMd5 {
+						result.Type = P2pTransType
+					} else if result.MD5 == MintProgramMd5 {
+						result.Type = MintTransType
+					} else {
+						result.Type = UnknownTransType
+					}
+
+				}
+
+				res = append(res, result)
+			}
 		}
 	}
 
 	return &res, nil
 }
 
-func (libra LibraRPC) GetAccountState(address string) (*AccountModel, error) {
-	result := AccountModel{}
+func (libra LibraRPC) GetAccountState(address string) (*models.AccountModel, error) {
+	result := models.AccountModel{}
 	result.Address = address
-	addressBytes, err := hexToBytes(address)
+	addressBytes, err := HexToBytes(address)
 
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{ libra.getAccountStateRequestMaker(addressBytes)})
+	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{libra.getAccountStateRequestMaker(addressBytes)})
 
 	if err != nil {
 		return nil, err
@@ -153,19 +155,19 @@ func (libra LibraRPC) GetAccountState(address string) (*AccountModel, error) {
 				return nil, nil
 			}
 
-			str := bytesToHex(blob.Blob)
+			str := BytesToHex(blob.Blob)
 			magicStr := "100000001217da6c6b3e19f1825cfb2676daecce3bf3de03cf26647c78df00b371b25cc974400000020000000"
 			idx := strings.Index(str, magicStr)
 
 			it := len(magicStr) + idx
 			addressLength := 64
-			result.AuthenticationKey = str[it:it+addressLength]
+			result.AuthenticationKey = str[it : it+addressLength]
 
 			it += addressLength
 			bitLength := 16
 			var tmpArr []uint64
-			for i:=0; i<4; i++ {
-				data, err := hexToUint64(str[it:it+bitLength])
+			for i := 0; i < 4; i++ {
+				data, err := HexToUint64(str[it : it+bitLength])
 				if err != nil {
 					return nil, err
 				}
@@ -220,7 +222,7 @@ func (libra LibraRPC) getAccountStateRequestMaker(address []byte) *pb.RequestIte
 	return &pb.RequestItem{
 		RequestedItems: &pb.RequestItem_GetAccountStateRequest{
 			GetAccountStateRequest: &pb.GetAccountStateRequest{
-				Address:address,
+				Address: address,
 			},
 		},
 	}

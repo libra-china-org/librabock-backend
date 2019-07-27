@@ -6,13 +6,16 @@ import (
 	"net/url"
 	"os"
 	"time"
+
+	"io.librablock.go/controllers"
+	"io.librablock.go/utils"
 )
 
 func haveARest() {
 	time.Sleep(250 * time.Microsecond)
 }
 
-func main()  {
+func main() {
 	botKey := os.Getenv("LIBRA_BOT_KEY")
 	botSecret := os.Getenv("LIBRA_BOT_SECRET")
 	chatId := os.Getenv("LIBRA_BOT_CHAT_ID")
@@ -21,14 +24,14 @@ func main()  {
 	telegramURL := fmt.Sprintf("https://api.telegram.org/%s:%s/sendMessage?chat_id=%s&parse_mode=markdown&text=", botKey, botSecret, chatId)
 	fmt.Println(telegramURL)
 
-	rpc := NewLibraRPC(nil)
-	db := NewDataBaseAdapter(dbURL)
+	rpc := controllers.NewLibraRPC(nil)
+	db := utils.NewDataBaseAdapter(dbURL)
 
-	db.migration()
+	db.Migration()
 
 	errCnt := 0
 
-	for  {
+	for {
 		if errCnt > 10 {
 			fmt.Printf("Max Retry Times")
 
@@ -44,7 +47,6 @@ func main()  {
 			continue
 		}
 
-
 		dbLatestVersion := db.GetLatestVersion()
 
 		limit := latestVersion - dbLatestVersion
@@ -59,7 +61,7 @@ func main()  {
 			limit = 1000
 		}
 
-		r, err := rpc.GetTransactions(dbLatestVersion + 1, limit, false)
+		r, err := rpc.GetTransactions(dbLatestVersion+1, limit, false)
 		if err != nil {
 			errCnt += 1
 			haveARest()
