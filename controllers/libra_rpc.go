@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	MintProgramMd5   = "f391bd853105aa8c8df4df6b72f57b87"
-	P2pProgramMd5    = "6ae054e289074cdf4f90d366ffde798a"
+	MintProgramMd5   = "f0604842739be4f06a3d60227226858e"
+	P2pProgramMd5    = "9b1b6bfc64fbe967a7f3d6606f7441d9"
 	MintTransType    = "mint_transaction"
 	P2pTransType     = "peer_to_peer_transaction"
 	UnknownTransType = "unknown"
