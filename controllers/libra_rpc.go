@@ -156,9 +156,8 @@ func (libra LibraRPC) GetAccountState(address string) (*models.AccountModel, err
 			}
 
 			str := BytesToHex(blob.Blob)
-			magicStr := "100000001217da6c6b3e19f1825cfb2676daecce3bf3de03cf26647c78df00b371b25cc974400000020000000"
+			magicStr := "100000001217da6c6b3e19f1825cfb2676daecce3bf3de03cf26647c78df00b371b25cc974500000020000000"
 			idx := strings.Index(str, magicStr)
-
 			it := len(magicStr) + idx
 			addressLength := 64
 			result.AuthenticationKey = str[it : it+addressLength]
@@ -173,6 +172,11 @@ func (libra LibraRPC) GetAccountState(address string) (*models.AccountModel, err
 				}
 
 				it += bitLength
+
+				if i == 0 { //skip for a boolean param
+					it += 2
+				}
+
 				tmpArr = append(tmpArr, data)
 			}
 
