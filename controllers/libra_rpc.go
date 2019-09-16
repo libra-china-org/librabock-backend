@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io.librablock.go/proto/admission_control"
+	"io.librablock.go/proto/types"
 	"log"
 	"strings"
 	"time"
@@ -14,7 +16,6 @@ import (
 	"google.golang.org/grpc"
 
 	"io.librablock.go/models"
-	pb "io.librablock.go/proto"
 )
 
 const (
@@ -62,7 +63,7 @@ func HexToUint64(str string) (uint64, error) {
 }
 
 func (libra LibraRPC) GetLatestVersion() (uint64, error) {
-	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{libra.getTransactionsRequestMaker(0, 1, false)})
+	r, err := libra.updateToLatestLedgerRequest([]*types.RequestItem{libra.getTransactionsRequestMaker(0, 1, false)})
 
 	if err != nil {
 		return 0, err
@@ -72,9 +73,11 @@ func (libra LibraRPC) GetLatestVersion() (uint64, error) {
 }
 
 func (libra LibraRPC) GetTransactions(version uint64, limit uint64, fetchEvents bool) (*[]models.BlockModel, error) {
-	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{libra.getTransactionsRequestMaker(version, limit, false)})
+	r, err := libra.updateToLatestLedgerRequest([]*types.RequestItem{libra.getTransactionsRequestMaker(version, limit, false)})
 
 	if err != nil {
+		fmt.Println(r)
+		fmt.Println(err.Error())
 		return nil, err
 	}
 
@@ -82,10 +85,10 @@ func (libra LibraRPC) GetTransactions(version uint64, limit uint64, fetchEvents 
 
 	for _, x := range r.ResponseItems {
 		switch val := x.ResponseItems.(type) {
-		case *pb.ResponseItem_GetTransactionsResponse:
+		case *types.ResponseItem_GetTransactionsResponse:
 			transactions := val.GetTransactionsResponse.TxnListWithProof.Transactions
 			for idx, trans := range transactions {
-				raw := pb.RawTransaction{}
+				raw := types.RawTransaction{}
 				err := proto.Unmarshal(trans.RawTxnBytes, &raw)
 				if err != nil {
 					return nil, err
@@ -102,12 +105,12 @@ func (libra LibraRPC) GetTransactions(version uint64, limit uint64, fetchEvents 
 				result.PublicKey = BytesToHex(trans.SenderPublicKey)
 
 				switch payload := raw.Payload.(type) {
-				case *pb.RawTransaction_Program:
+				case *types.RawTransaction_Program:
 					for _, arg := range payload.Program.Arguments {
 						switch arg.Type {
-						case pb.TransactionArgument_U64:
+						case types.TransactionArgument_U64:
 							result.Amount = uint64(binary.LittleEndian.Uint64(arg.Data))
-						case pb.TransactionArgument_ADDRESS:
+						case types.TransactionArgument_ADDRESS:
 							result.Destination = BytesToHex(arg.Data)
 						}
 					}
@@ -141,7 +144,7 @@ func (libra LibraRPC) GetAccountState(address string) (*models.AccountModel, err
 		return nil, err
 	}
 
-	r, err := libra.updateToLatestLedgerRequest([]*pb.RequestItem{libra.getAccountStateRequestMaker(addressBytes)})
+	r, err := libra.updateToLatestLedgerRequest([]*types.RequestItem{libra.getAccountStateRequestMaker(addressBytes)})
 
 	if err != nil {
 		return nil, err
@@ -149,7 +152,7 @@ func (libra LibraRPC) GetAccountState(address string) (*models.AccountModel, err
 
 	for _, v := range r.ResponseItems {
 		switch val := v.ResponseItems.(type) {
-		case *pb.ResponseItem_GetAccountStateResponse:
+		case *types.ResponseItem_GetAccountStateResponse:
 			blob := val.GetAccountStateResponse.AccountStateWithProof.Blob
 			if blob.GetBlob() == nil {
 				return nil, nil
@@ -191,30 +194,30 @@ func (libra LibraRPC) GetAccountState(address string) (*models.AccountModel, err
 	return &result, nil
 }
 
-func (libra LibraRPC) updateToLatestLedgerRequest(requests []*pb.RequestItem) (*pb.UpdateToLatestLedgerResponse, error) {
+func (libra LibraRPC) updateToLatestLedgerRequest(requests []*types.RequestItem) (*types.UpdateToLatestLedgerResponse, error) {
 	conn, rpcErr := grpc.Dial(libra.Address, grpc.WithInsecure())
 	if rpcErr != nil {
 		log.Fatalf("did not connect: %v", rpcErr)
 	}
 	defer conn.Close()
 
-	c := pb.NewAdmissionControlClient(conn)
+	c := admission_control.NewAdmissionControlClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	return c.UpdateToLatestLedger(
 		ctx,
-		&pb.UpdateToLatestLedgerRequest{
+		&types.UpdateToLatestLedgerRequest{
 			ClientKnownVersion: 0,
 			RequestedItems:     requests,
 		},
 	)
 }
 
-func (libra LibraRPC) getTransactionsRequestMaker(version uint64, limit uint64, fetchEvents bool) *pb.RequestItem {
-	return &pb.RequestItem{
-		RequestedItems: &pb.RequestItem_GetTransactionsRequest{
-			GetTransactionsRequest: &pb.GetTransactionsRequest{
+func (libra LibraRPC) getTransactionsRequestMaker(version uint64, limit uint64, fetchEvents bool) *types.RequestItem {
+	return &types.RequestItem{
+		RequestedItems: &types.RequestItem_GetTransactionsRequest{
+			GetTransactionsRequest: &types.GetTransactionsRequest{
 				StartVersion: version,
 				Limit:        limit,
 				FetchEvents:  true,
@@ -222,10 +225,10 @@ func (libra LibraRPC) getTransactionsRequestMaker(version uint64, limit uint64, 
 		}}
 }
 
-func (libra LibraRPC) getAccountStateRequestMaker(address []byte) *pb.RequestItem {
-	return &pb.RequestItem{
-		RequestedItems: &pb.RequestItem_GetAccountStateRequest{
-			GetAccountStateRequest: &pb.GetAccountStateRequest{
+func (libra LibraRPC) getAccountStateRequestMaker(address []byte) *types.RequestItem {
+	return &types.RequestItem{
+		RequestedItems: &types.RequestItem_GetAccountStateRequest{
+			GetAccountStateRequest: &types.GetAccountStateRequest{
 				Address: address,
 			},
 		},
